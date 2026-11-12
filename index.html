@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Amporia Works Billing</title>
+<meta name="description" content="Counter billing and invoices for Amporia Works">
+<meta name="theme-color" content="#5F2517">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="AW Billing">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header>
+  <img class="ic l" alt="" src="assets/icon-light.png"><img class="ic d" alt="" src="assets/icon-dark.png">
+  <h1 id="shopTitle">Counter Billing</h1>
+  <span class="count" id="count"></span>
+  <button class="btn" id="uploadBtn">Load price list</button>
+  <button class="btn" id="settingsBtn">Shop settings</button>
+  <input type="file" id="file" accept=".xlsx,.xls,.csv,.pdf,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+</header>
+
+<main>
+  <section>
+    <h2>Find components</h2>
+    <input id="q" type="search" placeholder="Search, e.g. 10k resistor, ESP32, 7805" autocomplete="off">
+    <div class="hint">Press Enter to add the top match. Separate words narrow the search.</div>
+    <div id="results"></div>
+    <div class="custom">
+      <input id="cName" placeholder="Item not in list">
+      <input id="cPrice" class="p" type="number" step="0.01" min="0" placeholder="Price">
+      <button class="btn" id="cAdd">Add item</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Current bill</h2>
+    <div class="cartwrap">
+      <table class="cart">
+        <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Amount</th><th></th></tr></thead>
+        <tbody id="cartBody"></tbody>
+      </table>
+    </div>
+    <div id="cartEmpty" class="empty">Search for a component and tap it to add it to the bill.</div>
+
+    <div class="fields">
+      <label>Customer name (optional)<input id="custName"></label>
+      <label>Phone (optional)<input id="custPhone" type="tel"></label>
+      <label class="full">Discount amount<input id="discount" type="number" min="0" step="0.01" value="0"></label>
+    </div>
+
+    <div class="lcd">
+      <div class="lbl"><div id="itemsLbl">0 items</div><div id="subLbl">Subtotal 0.00</div></div>
+      <div class="big" id="total">0.00</div>
+    </div>
+
+    <div class="actions">
+      <button class="btn primary" id="savePdf">Save as PDF</button>
+      <button class="btn primary" id="saveImg">Save as image</button>
+      <button class="btn" id="payBtn">Payment QR</button>
+      <button class="btn" id="newBill">New bill</button>
+    </div>
+  </section>
+</main>
+
+<dialog id="settings">
+  <h3>Shop settings</h3>
+  <label>Shop name<input id="sShop"></label>
+  <label>Address<input id="sAddr"></label>
+  <label>Phone / email<input id="sPhone"></label>
+  <label>Currency symbol<input id="sCur" maxlength="4"></label>
+  <label>Footer note<input id="sNote"></label>
+  <div style="display:flex;gap:12px">
+    <label style="flex:1">UPI ID for payments<input id="sUpi" placeholder="name@bank" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+    <label style="flex:1">Payee name<input id="sPayee"></label>
+  </div>
+  <label>Logo (PNG or JPG)
+    <span style="display:flex;gap:8px;align-items:center">
+      <img id="sLogoPrev" alt="" style="height:36px;max-width:120px;object-fit:contain;display:none;background:#fff;border-radius:4px;padding:2px">
+      <input id="sLogo" type="file" accept="image/*" style="flex:1">
+      <button type="button" class="btn" id="sLogoClear">Remove</button>
+      <button type="button" class="btn" id="sLogoReset">Default</button>
+    </span>
+  </label>
+  <div style="display:flex;gap:12px">
+    <label style="flex:1">Brand colour<input id="sBrand" type="color" style="height:38px;padding:2px"></label>
+    <label style="flex:1">Highlight colour<input id="sAccent" type="color" style="height:38px;padding:2px"></label>
+  </div>
+  <div class="row"><button class="btn" id="sCancel">Cancel</button><button class="btn primary" id="sSave">Save settings</button></div>
+</dialog>
+
+<dialog id="payDlg" class="pay">
+  <h3>Scan to pay</h3>
+  <div class="payamt" id="payAmt"></div>
+  <img id="payQr" alt="UPI payment QR code">
+  <div class="payto" id="payTo"></div>
+  <div class="hint">Works with GPay, PhonePe, Paytm, BHIM and any UPI app. The amount fills in automatically.</div>
+  <div class="row"><button class="btn primary" id="payClose">Done</button></div>
+</dialog>
+
+<div id="invoice"></div>
+<div id="status"></div>
+
+<script src="js/logo.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
